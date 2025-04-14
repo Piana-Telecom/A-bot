@@ -4,8 +4,8 @@ from datetime import date, timedelta
 
 
 def filtrar_por_data(df: pd.DataFrame) -> pd.DataFrame:
-    today = date.today()
-    thirty_days_ago = today - timedelta(days=30)
+    today = date.today() - timedelta(days=30)
+    thirty_days_ago = today - timedelta(days=60)
 
     # Converte colunas para datetime.date
     df["DT_Atividade"] = pd.to_datetime(df["DT_Atividade"], errors="coerce").dt.date
