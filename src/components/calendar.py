@@ -1,55 +1,67 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date
 
 
-def filtrar_por_data(df: pd.DataFrame) -> pd.DataFrame:
-    today = date.today() - timedelta(days=30)
-    thirty_days_ago = today - timedelta(days=60)
-
-    # Converte colunas para datetime.date
-    df["DT_Atividade"] = pd.to_datetime(df["DT_Atividade"], errors="coerce").dt.date
-    df["DT_Conclusao"] = pd.to_datetime(df["DT_Conclusao"], errors="coerce").dt.date
+def filtrar_por_mes(df: pd.DataFrame) -> pd.DataFrame:
+    # Converte as colunas de data
+    df["DT_Atividade"] = pd.to_datetime(df["DT_Atividade"], errors="coerce")
+    df["DT_Conclusao"] = pd.to_datetime(df["DT_Conclusao"], errors="coerce")
 
     # Remove linhas com datas inválidas
-    df = df.dropna(subset=["DT_Atividade", "DT_Conclusao"])
+    df = df.dropna(subset=["DT_Atividade"])
 
-    # Define intervalo disponível
-    min_date = min(df["DT_Atividade"].min(), df["DT_Conclusao"].min())
-    max_date = max(df["DT_Atividade"].max(), df["DT_Conclusao"].max())
+    # Criar colunas auxiliares de mês e ano
+    df["ano"] = df["DT_Atividade"].dt.year
+    df["mes"] = df["DT_Atividade"].dt.month
 
-    # Inputs para o usuário
-    st.write("### Filtrar por janela de tempo")
+    # Opções para seleção
+    anos_disponiveis = sorted(df["ano"].unique())
+    meses_disponiveis = {
+        1: "Janeiro",
+        2: "Fevereiro",
+        3: "Março",
+        4: "Abril",
+        5: "Maio",
+        6: "Junho",
+        7: "Julho",
+        8: "Agosto",
+        9: "Setembro",
+        10: "Outubro",
+        11: "Novembro",
+        12: "Dezembro",
+    }
+
+    st.write("### Filtrar por mês de início da etapa 'DADOS DE PROJETO'")
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input(
-            "Data inicial",
-            min_value=min_date,
-            max_value=max_date,
-            value=thirty_days_ago,
-            format="DD/MM/YYYY",
-        )
+        ano = st.selectbox("Ano", anos_disponiveis, index=len(anos_disponiveis) - 1)
     with col2:
-        end_date = st.date_input(
-            "Data final",
-            min_value=min_date,
-            max_value=max_date,
-            value=today,
-            format="DD/MM/YYYY",
+        mes = st.selectbox(
+            "Mês",
+            list(meses_disponiveis.keys()),
+            format_func=lambda x: meses_disponiveis[x],
         )
 
-    # Aplica o filtro
-    df_filtrado = df[
-        ((df["DT_Atividade"] >= start_date) & (df["DT_Atividade"] <= end_date))
-        | ((df["DT_Conclusao"] >= start_date) & (df["DT_Conclusao"] <= end_date))
-    ]
+    # Identifica os serviços que começaram a etapa "DADOS DE PROJETO" no mês/ano selecionado
+    servicos_filtrados = df[
+        (df["DS_Etapa"].str.upper() == "DADOS DE PROJETO")
+        & (df["ano"] == ano)
+        & (df["mes"] == mes)
+    ]["DS_Servico"].unique()
 
-    # Formata as datas para string brasileira
-    df_filtrado["DT_Atividade"] = pd.to_datetime(
-        df_filtrado["DT_Atividade"]
-    ).dt.strftime("%d-%m-%Y")
-    df_filtrado["DT_Conclusao"] = pd.to_datetime(
-        df_filtrado["DT_Conclusao"]
-    ).dt.strftime("%d-%m-%Y")
+    # Filtra todas as linhas relacionadas a esses serviços
+    df_resultado = df[df["DS_Servico"].isin(servicos_filtrados)].copy()
 
-    return df_filtrado
+    if df_resultado.empty:
+        st.warning("Nenhuma atividade encontrada para o mês selecionado.")
+        return pd.DataFrame()
+
+    # Formata datas para exibição
+    df_resultado["DT_Atividade"] = df_resultado["DT_Atividade"].dt.strftime("%d-%m-%Y")
+    df_resultado["DT_Conclusao"] = df_resultado["DT_Conclusao"].dt.strftime("%d-%m-%Y")
+
+    # Remove colunas auxiliares
+    df_resultado = df_resultado.drop(columns=["ano", "mes"])
+
+    return df_resultado
