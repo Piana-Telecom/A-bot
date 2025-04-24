@@ -5,37 +5,46 @@ from io import BytesIO
 
 
 def generate_spreadsheet(df: pd.DataFrame):
-    # Filtra apenas etapas relevantes
-    etapas_validas = ["DADOS DE PROJETO", "CONFERENCIA", "RESULTADO"]
+    # Considera todas as etapas relevantes
+    etapas_validas = ["DADOS DE PROJETO", "CONFERENCIA", "RESULTADO", "DADOS PROTOCOLO"]
     df = df[df["DS_Etapa"].isin(etapas_validas)]
 
-    # Agrupa por DS_Servico e DS_Etapa, somando QuantidadeAplicada
+    # Substitui nomes para facilitar
+    df["DS_Etapa"] = df["DS_Etapa"].replace(
+        {"DADOS DE PROJETO": "ENTRADA", "CONFERENCIA": "CONFERÊNCIA"}
+    )
+
+    # Cria cópias dos protocolos
+    df_resultado = df[df["DS_Etapa"] == "RESULTADO"].copy()
+    df_resultado["DS_Etapa"] = "PROTOCOLO"
+
+    df_dados_protocolo = df[df["DS_Etapa"] == "DADOS PROTOCOLO"].copy()
+    df_dados_protocolo["DS_Etapa"] = "PROTOCOLO"
+
+    # Agrupa todos os dados (inclusive os dois tipos de protocolo renomeados)
+    df_protocolo_final = pd.concat([df, df_resultado, df_dados_protocolo])
+
+    # Agora agrupa tudo
     df_grouped = (
-        df.groupby(["DS_Servico", "DS_Etapa"])["QuantidadeAplicada"]
+        df_protocolo_final.groupby(["DS_Servico", "DS_Etapa"])["QuantidadeAplicada"]
         .sum()
         .unstack(fill_value=0)
     )
 
-    # Renomeia as colunas
-    df_grouped = df_grouped.rename(
-        columns={
-            "DADOS DE PROJETO": "ENTRADA",
-            "CONFERENCIA": "CONFERÊNCIA",
-            "RESULTADO": "PROTOCOLO",
-        }
-    )
+    # Garante colunas
+    for col in ["ENTRADA", "CONFERÊNCIA", "PROTOCOLO"]:
+        if col not in df_grouped.columns:
+            df_grouped[col] = 0
 
-    # Remove serviços que não possuem as 3 colunas
+    # Seleciona apenas os projetos com ENTRADA e CONFERÊNCIA
     df_grouped = df_grouped[
-        (df_grouped["ENTRADA"] != 0)
-        & (df_grouped["CONFERÊNCIA"] != 0)
-        & (df_grouped["PROTOCOLO"] != 0)
+        (df_grouped["ENTRADA"] != 0) & (df_grouped["CONFERÊNCIA"] != 0)
     ]
 
-    # Calcula a diferença
+    # Calcula diferença
     df_grouped["DIFERENÇA"] = (df_grouped["ENTRADA"] - df_grouped["PROTOCOLO"]).round(3)
 
-    # Ajusta o índice como coluna
+    # Prepara o DataFrame final
     df_grouped = df_grouped.reset_index()
     df_grouped = df_grouped[
         ["DS_Servico", "ENTRADA", "CONFERÊNCIA", "PROTOCOLO", "DIFERENÇA"]
@@ -77,12 +86,28 @@ def generate_spreadsheet(df: pd.DataFrame):
         worksheet.write(0, col_num, col_name, header_format)
 
     # Dados
+    # Dados
     for row_num, row in enumerate(df_grouped.itertuples(index=False), start=1):
         worksheet.write(row_num, 0, row[0], cell_format)
         worksheet.write_number(row_num, 1, row[1], number_format)
         worksheet.write_number(row_num, 2, row[2], number_format)
         worksheet.write_number(row_num, 3, row[3], number_format)
-        worksheet.write_number(row_num, 4, row[4], number_format)
+
+        # Formatação condicional para diferença discrepante
+        if abs(row[4]) > 5:  # valor de corte, pode ajustar
+            red_format = workbook.add_format(
+                {
+                    "bg_color": "#C00000",
+                    "font_color": "white",
+                    "border": 1,
+                    "align": "center",
+                    "valign": "vcenter",
+                    "num_format": "0.000",
+                }
+            )
+            worksheet.write_number(row_num, 4, row[4], red_format)
+        else:
+            worksheet.write_number(row_num, 4, row[4], number_format)
 
     workbook.close()
     output.seek(0)

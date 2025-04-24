@@ -33,7 +33,7 @@ COPY . /app
 WORKDIR /app
 
 # Expose the port your application will run on (adjust as needed)
-EXPOSE 8501
+EXPOSE 8505
 
 # Run your application. For example, this launches a Streamlit app.
-CMD ["streamlit", "run", "src/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "src/app.py", "--server.port=8505", "--server.address=0.0.0.0"]
