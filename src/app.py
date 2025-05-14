@@ -9,7 +9,6 @@ st.title("A-Bot : Automação Aliance")
 
 df = get_filtered_data()
 df_filtrado = filtrar_por_mes(df)
-
 generate_spreadsheet(df_filtrado)
 st.write("### Resultado filtrado")
 st.dataframe(df_filtrado)
